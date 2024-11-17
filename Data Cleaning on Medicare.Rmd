@@ -1,0 +1,170 @@
+---
+title: "Kellogg Data Task 2"
+author: "Sanya Dhar Malhotra"
+date: "2024-10-26"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tibble)
+library(tidyverse)
+library(kableExtra)
+library(knitr)
+library(scales)
+library(broom)
+```
+
+
+```{r}
+setwd("/Users/sanyamalhotra/Downloads/EvaluativeAssignment_2024/Medicare_Advantage") 
+Medicare = read_csv("scp-1205.csv")
+Medicare
+```
+```{r}
+# Cleaning Raw Data (pre-objective parts) 
+# Run Through Only Once 
+
+# Create new columnn names 
+colnames(Medicare) = c("countyname", "state", "contract", "healthplanname", "typeofplan", "countyssa",  "eligibles", "enrollees", "penetration", "ABrates")
+
+# Remove contract column 
+Medicare = Medicare %>% 
+  select(-contract)
+
+# Replace NAs with 0s 
+Medicare = Medicare %>% 
+  replace_na(list(eligibles = 0, enrollees = 0, penetration = 0))
+
+# Identify territories and filter them out
+unique(Medicare$state)
+Medicare = Medicare %>% 
+  filter(state != "PR" & state != "VI" & state != "AS" & state != "99" & state != "GU")
+
+# input row of code taken out from colnames
+Medicare = rbind(c("AUTAUGA", "AL", "HEALTHSPRING OF ALABAMA INC.", "HMO", 1000, 6883, 313, 4.55, 654.22), Medicare)
+
+```
+
+
+```{r}
+
+# target length of each dataframe = 3037
+length(unique(Medicare$countyssa))
+
+# add 0s to 4 digit county ssa 
+Medicare = Medicare %>% 
+  mutate(countyssa = ifelse(nchar(countyssa) < 5, paste0("0", countyssa), countyssa))
+
+# county ssa code unique by state (first two numbers)
+Medicare$statecode = substr(Medicare$countyssa, 1, 2)
+
+```
+
+
+```{r}
+
+# Convert relevant columns to numeric 
+Medicare[c("eligibles", "enrollees", "penetration")] = sapply(Medicare[c("eligibles", "enrollees", "penetration")], as.numeric)
+
+# Build a unique county data set to merge with plans dataframes 
+counties = data.frame(unique(Medicare$countyssa))
+colnames(counties) = c("countyssa")
+
+# Create numberofplans1 column
+df_plans1 = Medicare %>% 
+  group_by(countyssa) %>% 
+  filter(enrollees > 10) %>% 
+  summarize(numberofplans1 = n())
+
+# Merge with county dataset to include 0s for excluded counties
+plans1_merge = merge(counties, df_plans1, all = TRUE)
+plans1_merge[is.na(plans1_merge)] = 0
+plans1_merge = plans1_merge %>% 
+  select(numberofplans1)
+
+# Create numberofplans2 column
+df_plans2 = Medicare %>% 
+  group_by(countyssa) %>% 
+  filter(penetration > 0.5) %>% 
+  summarize(numberofplans2 = n())
+
+# Merge with county dataset to include 0s for excluded counties  
+plans2_merge = merge(counties, df_plans2, all = TRUE)
+plans2_merge[is.na(plans2_merge)] = 0 
+plans2_merge = plans2_merge %>% 
+  select(numberofplans2)
+
+# Create eligibles column by using mean function 
+df_eligibles = Medicare %>% 
+  group_by(countyssa) %>% 
+  summarize(eligibles = mean(eligibles))
+
+# Create enrollees column by sum function 
+df_enrollees = Medicare %>% 
+  group_by(countyssa) %>% 
+  summarize(totalenrollees = sum(enrollees))
+
+# Create total penetration column by combining eligibles and enrollees 
+combined_elig = merge(df_eligibles, df_enrollees)
+combined_elig = combined_elig %>% 
+  mutate(totalpenetration = format(round((totalenrollees/eligibles)*100, 2)))
+
+# Clean Dataset with all columns except countyname and state 
+# Add statecode for next step 
+Medicare_B = cbind(plans1_merge, plans2_merge, combined_elig)
+Medicare_B$statecode = substr(Medicare_B$countyssa, 1, 2)
+
+# Arrange by countyssa in case it is not perfectly in order 
+Medicare_B = Medicare_B %>% 
+  arrange(countyssa)
+```
+
+```{r}
+# Create state and statecode df 
+state_df = data.frame(c(unique(Medicare$state)), c(unique(Medicare$statecode)))
+colnames(state_df) = c("state", "statecode")
+
+# Merge to add state column and remove statecode 
+Medicare_C = merge(state_df, Medicare_B)
+Medicare_C = Medicare_C %>% 
+  select(-statecode)
+
+# Make each county unique by adding state as a special marker  
+Medicare_X = Medicare %>%
+  group_by(state) %>% 
+  mutate(countyname = paste0(countyname, state)) %>% 
+  arrange(countyssa)
+
+# Arranged by countyssa and fits target length so binding without countyssa will work
+county_df = data.frame(c(unique(Medicare_X$countyname)))
+colnames(county_df) = c("countyname")
+
+# Combine data
+Medicare_Clean = cbind(county_df, Medicare_C)
+
+# Remove special state marker 
+Medicare_Clean$countyname = str_sub(Medicare_Clean$countyname, end = -3)
+
+# Convert total penetration to numeric format
+Medicare_Clean$totalpenetration = as.numeric(Medicare_Clean$totalpenetration)
+Medicare_Clean
+
+write_csv(Medicare_Clean, "Medicare_Clean.csv")
+
+
+```
+
+
+

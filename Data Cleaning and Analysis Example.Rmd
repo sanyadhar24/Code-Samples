@@ -1,0 +1,186 @@
+---
+title: "Data Cleaning and Analysis Example"
+author: "Sanya Dhar Malhotra"
+date: "2024-11-17"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(sass)
+library(dplyr)
+library(ggplot2)
+library(tibble)
+library(tidyverse)
+library(kableExtra)
+library(knitr)
+library(scales)
+library(broom)
+library(lmtest)
+library(sandwich)
+```
+
+```{r}
+setwd("/Users/sanyamalhotra/Downloads/2024 MIT Blueprint Labs Data Task/Data/schools")
+
+# adding column for year to each dataframe
+Schools_2010 = read_csv("hd2010.csv")
+Schools_2010 = Schools_2010 %>% mutate(year = 2010)
+Schools_2011 = read_csv("hd2011.csv")
+Schools_2011 = Schools_2011 %>% mutate(year = 2011)
+Schools_2012 = read_csv("hd2012.csv")
+Schools_2012 = Schools_2012 %>% mutate(year = 2012)
+Schools_2013 = read_csv("hd2013.csv")
+Schools_2013 = Schools_2013 %>% mutate(year = 2013)
+Schools_2014 = read_csv("hd2014.csv")
+Schools_2014 = Schools_2014 %>% mutate(year = 2014)
+Schools_2015 = read_csv("hd2015.csv")
+Schools_2015 = Schools_2015 %>% mutate(year = 2015)
+Schools_Data = rbind(Schools_2010, Schools_2011, Schools_2012, Schools_2013, Schools_2014, Schools_2015)
+
+# excluding schools that just offer degrees/certificates for grad students
+Schools_Data = Schools_Data %>% filter(instcat == 2 | instcat == 3 | instcat == 4 | instcat == 6) 
+Schools_Data
+
+setwd("/Users/sanyamalhotra/Downloads/2024 MIT Blueprint Labs Data Task/Data/students")
+SFA_Data = read_csv("sfa1015.csv")
+SFA_Data
+
+```
+
+```{r}
+# 3701-3875 are the TN Zipcodes 
+
+# Extract substring of zipcode to filter Tennessee schools
+
+Schools_TN = Schools_Data 
+Schools_TN = Schools_TN %>% rename(ID_IPEDS = unitid)
+Schools_TN$zipcode = substr(Schools_TN$zip, 1, 4)
+
+Schools_TN$zipcode = as.numeric(Schools_TN$zipcode)
+check = 3701:3857
+Schools_TN = Schools_TN %>% filter(zipcode %in% check)
+
+# create variables for bachelors and public institution 
+Schools_TN = Schools_TN %>% mutate(degree_bach = ifelse((instcat == 2 | instcat == 3), 1, 0)) %>% 
+  mutate(public = ifelse(control == 1, 1, 0))
+Schools_TN = Schools_TN %>% select(ID_IPEDS, year, degree_bach, public)
+
+# match ids between schools and SFA datasets 
+check_id = Schools_TN$ID_IPEDS
+SFA_TN = SFA_Data %>% filter(unitid %in% check_id)
+SFA_TN = SFA_TN %>% arrange(unitid) %>% rename(ID_IPEDS = unitid) 
+Schools_TN = Schools_TN %>% arrange(ID_IPEDS)
+```
+
+
+```{r}
+# convert SFA cross-sectional data into panel data 
+SFA_Panel = SFA_TN %>%
+  pivot_longer(
+    cols = -ID_IPEDS,                           
+    names_to = c(".value", "year"),      
+    names_pattern = "(.*)(\\d{4})"         
+  )
+
+# add grant_state, grant_federal, and enroll_ftug variables 
+# grant_state = sgrnt_a * (sgrnt_p * scugffn)
+# grant_federal = fgrnt_a * (fgrnt_p * scugffn)
+SFA_Panel = SFA_Panel[!is.na(SFA_Panel$scugffn) & !is.na(SFA_Panel$fgrnt_p) & !is.na(SFA_Panel$fgrnt_a) & !is.na(SFA_Panel$sgrnt_p) & !is.na(SFA_Panel$sgrnt_a),]
+SFA_Panel = SFA_Panel %>% mutate(grant_state = sgrnt_a * (sgrnt_p * scugffn)) %>% 
+  mutate(grant_federal = fgrnt_a * (fgrnt_p * scugffn)) %>% 
+  rename(enroll_ftug = scugffn) %>% 
+  select(ID_IPEDS, year, enroll_ftug, grant_state, grant_federal)
+
+# merge both panel datasets  
+SFA_Panel$year = as.numeric(SFA_Panel$year)
+Final_Panel = Schools_TN %>% left_join(SFA_Panel, by = c("ID_IPEDS" = "ID_IPEDS", "year" = "year"))
+
+# removing schools without a row for each year in 2010-2015 
+
+range = 2010:2015 
+selected_schools = Final_Panel %>% 
+  group_by(ID_IPEDS) %>% 
+  summarise(num_years = n_distinct(year)) %>% 
+  filter(num_years == length(range)) %>% 
+  pull(ID_IPEDS)
+Final_Panel = Final_Panel %>% filter(ID_IPEDS %in% selected_schools)
+
+# removing schools with NA values for enrollment and aid 
+
+rows_removed = Final_Panel[is.na(Final_Panel$enroll_ftug) | is.na(Final_Panel$grant_state) | is.na(Final_Panel$grant_federal),]
+schools_removed = rows_removed$ID_IPEDS
+rows_removed 
+Final_Panel = Final_Panel %>% filter(!ID_IPEDS %in% schools_removed)
+```
+
+
+```{r}
+# clean data set 
+Final_Panel
+
+write_csv(Final_Panel, "clean_data.csv")
+getwd()
+```
+Analysis 
+1. 
+```{r}
+
+# summary statistics 
+
+summary = Final_Panel %>%
+  group_by(year) %>%
+  summarise(
+    bachelors = sum(degree_bach == 1),
+    public_inst = sum(public == 1),
+    mean_ftug = mean(enroll_ftug, na.rm = TRUE),
+    mean_stateaid = mean(grant_state, na.rm = TRUE),
+    mean_federalaid = mean(grant_federal, na.rm = TRUE),
+    count = n()
+  )
+
+# convert means into integers 
+
+summary$mean_ftug = as.integer(summary$mean_ftug)
+summary$mean_stateaid = as.integer(summary$mean_stateaid)
+summary$mean_federalaid = as.integer(summary$mean_federalaid)
+summary
+
+summary %>% kbl(caption = "Summary Statistics for Panel Data on Tennessee Schools and Financial Aid") %>% kable_classic_2(full_width = F)
+```
+
+2. 
+
+```{r}
+Promise_Data = Final_Panel
+
+# create categories of schools and add to new dataset 
+
+Promise_Data$group =  
+  ifelse((Promise_Data$degree_bach == 0 & Promise_Data$public == 1), "Public Two Year", 
+         ifelse((Promise_Data$degree_bach == 1 & Promise_Data$public == 1), "Public Four Year", 
+                ifelse((Promise_Data$degree_bach == 0 & Promise_Data$public == 0), "Private Two Year", "Private Four Year"))) 
+Promise_Data
+
+Promise_2015 = Promise_Data %>% subset(year == 2015)
+
+# calculate averages for 2015 
+scholarship_summary = Promise_2015 %>% 
+  group_by(group) %>% 
+  summarise(
+    avg_stateaid = mean(grant_state, na.rm = TRUE), 
+    avg_enroll = mean(enroll_ftug, na.rm = TRUE)
+  )
+scholarship_summary$avg_stateaid = as.integer(scholarship_summary$avg_stateaid)
+scholarship_summary$avg_enroll = as.integer(scholarship_summary$avg_enroll)
+scholarship_summary
+```

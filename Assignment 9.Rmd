@@ -1,0 +1,153 @@
+---
+title: "Assignment 9"
+author: "Sanya Dhar Malhotra"
+date: "2024-11-13"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tseries) 
+library(quantmod) 
+library(forecast) 
+library(readxl)
+library(rugarch)
+```
+
+
+```{r}
+setwd("/Users/sanyamalhotra/Downloads/Data and Script 9")
+data = read_xlsx("ie_data.xlsx")
+data
+```
+```{r}
+
+model1 = lm(return ~ cape, data = data)
+summary(model1)
+
+model2 = lm(return ~ trcape, data = data)
+summary(model2)
+
+model3 = lm(return ~ ecy, data = data)
+summary(model3)
+
+model4 = lm(return ~ trcape + ecy, data = data)
+summary(model4)
+
+# Best Fit: Model 4
+```
+```{r}
+train = subset(data, date < 2000.01)
+rwindow = nrow(train)
+rolling = subset(data, date < 2014.04)
+
+# Model 1 
+test1 = rollapply(rolling, rwindow, 
+                 FUN = function(x) {
+                   alpha = lm(x[,2]~x[,3])[[1]][[1]]
+                   beta = lm(x[,2]~x[,3])[[1]][[2]]
+                   yhat = alpha + beta*x[,3]
+                   rmse = sqrt(mean((x[,2]-yhat)^2))
+                   return(rmse)
+                 }, by.column = FALSE)
+error1 = mean(test1)
+
+# Model 2
+test2 = rollapply(rolling, rwindow, 
+                 FUN = function(x) {
+                   alpha = lm(x[,2]~x[,4])[[1]][[1]]
+                   beta = lm(x[,2]~x[,4])[[1]][[2]]
+                   yhat = alpha + beta*x[,4]
+                   rmse = sqrt(mean((x[,2]-yhat)^2))
+                   return(rmse)
+                 }, by.column = FALSE)
+error2 = mean(test2)
+
+# Model 3
+test3 = rollapply(rolling, rwindow, 
+                 FUN = function(x) {
+                   alpha = lm(x[,2]~x[,5])[[1]][[1]]
+                   beta = lm(x[,2]~x[,5])[[1]][[2]]
+                   yhat = alpha + beta*x[,5]
+                   rmse = sqrt(mean((x[,2]-yhat)^2))
+                   return(rmse)
+                 }, by.column = FALSE)
+error3 = mean(test3)
+
+# Model 4
+test4 = rollapply(rolling, rwindow, 
+                 FUN = function(x) {
+                   alpha = lm(x[,2]~x[,4] + x[,5])[[1]][[1]]
+                   beta1 = lm(x[,2]~x[,4] + x[,5])[[1]][[2]]
+                   beta2 = lm(x[,2]~x[,4] + x[,5])[[1]][[3]]
+                   yhat = alpha + beta1*x[,4] + beta2*x[,5]
+                   rmse = sqrt(mean((x[,2]-yhat)^2))
+                   return(rmse)
+                 }, by.column = FALSE)
+error4 = mean(test4)
+
+model_errors = data.frame(RMSE1 = error1, RMSE2 = error2, RMSE3 = error3, RMSE4 = error4)
+model_errors
+
+# Best Model: Model 4 because it has lowest RMSE 
+```
+```{r}
+# GARCH MODEL
+
+# Check Data for Stationarity 
+getSymbols("TSLA", src="yahoo")
+tesla = TSLA$TSLA.Adjusted
+tesla_returns = dailyReturn(tesla)
+plot(tesla_returns)
+plot(density(tesla_returns))
+acf(tesla_returns, lag.max = 60)
+
+# GARCH Model 1
+garch1 = ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                         mean.model = list(armaOrder = c(0, 0), include.mean = FALSE))
+
+gfit01 = ugarchfit(spec = garch1, data = tesla_returns)
+gfit01 # Log Likelihood: 7060 
+plot(gfit01, which = 1)
+plot(gfit01, which = 3)
+
+# GARCH Model 2
+garch2 = ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                         mean.model = list(armaOrder = c(1, 1), include.mean = TRUE))
+
+gfit02 = ugarchfit(spec = garch2, data = tesla_returns)
+gfit02 # Log Likelihood: 7065
+plot(gfit02, which = 1)
+plot(gfit02, which = 3)
+
+# GARCH Model 3 
+garch3 = ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                         mean.model = list(armaOrder = c(1, 1), include.mean = TRUE, 
+                                           archm = TRUE))
+
+gfit03 = ugarchfit(spec = garch3, data = tesla_returns)
+gfit03 # Log Likelihood: 7068
+plot(gfit03, which = 1)
+plot(gfit03, which = 3)
+
+# Best Model: Model 3 because it has highest log likelihood 
+
+fcast_volatility = ugarchforecast(gfit03, n.ahead = 100)
+print(fcast_volatility)
+plot(fcast_volatility, which = 3)
+```
+
+
+
+

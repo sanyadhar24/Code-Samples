@@ -1,0 +1,148 @@
+---
+title: "Assignment 8"
+author: "Sanya Dhar Malhotra"
+date: "2024-11-06"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+
+```{r}
+library(readxl)
+library(quantmod)
+library(forecast)
+library(strucchange)
+library(vars)
+```
+
+
+```{r}
+setwd("/Users/sanyamalhotra/Downloads/Data and Script 7")
+macro = read_xlsx("W09c_macro.xlsx")
+macro1 = macro[,-1]
+
+getSymbols("GDPC1", src="FRED")  
+gdp = GDPC1['1990-01-01/2023-04-01']
+test = as.vector(GDPC1["2023-07-01/2024-07-01"])
+```
+
+```{r}
+# Run Dynamic Factor Model 
+macro2 = prcomp(macro1, scale=TRUE)
+
+pc3 = macro2$x[,1:3]
+pc3a = cbind(macro[,1], pc3)
+pc3.month = ts(pc3a[,-1], start=c(1990,1), frequency=12)
+pc3.qtr = aggregate(pc3.month, nfrequency=4, mean) 
+plot(pc3.qtr)
+
+data2 = data.frame(gdp, pc3.qtr)
+fit02 = lm(GDPC1~., data = data2)
+summary(fit02)
+
+var02 = VAR(pc3.qtr, p = 6, type = "both")
+summary(var02)
+fcast_var = predict(var02, n.ahead = 5, ci = 0.95)
+
+# Calculate RMSE 
+pc.fcst = cbind(fcast_var$fcst[[1]][,1], fcast_var$fcst[[2]][,1],fcast_var$fcst[[3]][,1])
+
+input=data.frame(pc.fcst)
+colnames(input)=c("PC1","PC2","PC3")
+fcast_dfm = predict(fit02, input)
+fcast_dfm
+
+rmse_dfm = sqrt(mean((fcast_dfm - test)^2))
+rmse_dfm
+```
+
+```{r}
+# Run Arima Model
+
+gdp_arima = auto.arima(gdp)
+fcast_arima = forecast(gdp_arima, h = 5)
+fcast_arima
+
+rmse_arima = sqrt(mean((fcast_arima$mean - test)^2))
+rmse_arima
+
+```
+```{r}
+
+# Run Structural Time Series Model
+fitlevel = StructTS(gdp, "level")
+fitlevel
+
+fcast_level = forecast(fitlevel, h = 5)
+
+rmse_level = sqrt(mean((fcast_level$mean - test)^2))
+rmse_level
+
+fittrend = StructTS(gdp, "trend")
+fittrend
+
+fcast_trend = forecast(fittrend, h = 5)
+
+rmse_trend = sqrt(mean((fcast_trend$mean - test)^2))
+rmse_trend
+```
+
+The two models with the lowest RMSEs were the ARIMA (0,1,1) with drift model and the structural time series with trend types. The ARIMA model had an RMSE of 283.52 and the structural time series (trend) had an RMSE of 291.70. Both of these models capture an underlying trend in the data: the ARIMA model with a moving average term of 1 and the structural time series with a trend component. It appears that the trend is stable (slope = 0) and both models capture variance in the epsilon (error term). This suggests time-variant fluctuations/noise around the trend. Most likely the dynamic factor model was not as effective because autoregressive components are not a useful predictor for this data since ARIMA has an autoregressive term of 0. Also, 3 principal components might not have been enough to locate interrelated behaviors in the data. The structural time series with level type labels all variance as part of level dynamics which misses the drift component of the trend - aka a random walk with drift. 
+
+```{r}
+# Part B 
+getSymbols("PAYEMS", src="FRED")  
+jobs = diff(log(PAYEMS))
+jobsg = apply.quarterly(jobs, mean)
+jobsg = jobsg["1947-12-01/2019-12-01"]
+jobsg = ts(jobsg, start = c(1947, 4), frequency=4)
+plot(jobsg)
+
+gdpg = diff(log(GDPC1))
+gdpg = gdpg["1947-12-01/2020-01-01"]
+gdpg = ts(gdpg, start = c(1947, 4), frequency=4)
+plot(gdpg)
+
+# No visible seasonality 
+
+econ = cbind(jobsg, stats::lag(jobsg, k = -1), gdpg)
+econ2 = tail(econ, -1)
+econ3 = head(econ2, -1)
+
+colnames(econ3) = c("jobg", "jobglag", "gdpg")
+```
+
+```{r}
+# Run Linear Regression
+
+fitlm = lm(jobg ~ jobglag + gdpg, data = econ3)
+summary(fitlm)
+
+# Nothing passes the threshold, but varying trends across time frame 
+re.jobs = efp(jobg ~ jobglag + gdpg, data = econ3, type = "RE")
+plot(re.jobs)
+
+## Dating
+bp.jobs = breakpoints(jobg ~ jobglag + gdpg, data = econ3, h = 0.1)
+summary(bp.jobs)
+
+# Lowest BIC with 0 breakpoints 
+# Three possible breakdates at 1962 Q4, 1974 Q2, 2010 Q1 
+
+factor = breakfactor(bp.jobs, breaks = 3, label = "seg")
+newfit = lm(jobg ~ 0 + factor/jobglag + factor/gdpg, data = econ3)
+summary(newfit)
+
+```
+The three break dates I used based on the breakpoints() output were at 1962 Q4, 1974 Q2, and 2010 Q1. Without much context, it is difficult to tell what these dates as moments of structural transition/change signify. Because the model has three parameters (alpha, beta, beta2), the structural break could be due to a shift in any of them. Looking at the simple linear regression, it is clear the lagged job growth rate and GDP growth rate are highly correlated with present job growth rate. This means previous trends in employment and economic output are important to understand and predict the job growth rate. The re-specified model with three breakdates at the aforementioned quarters has a higher adjusted R squared at .73. This means one shoud not completely trust the lowest BIC as what model will have the best fit since it recommends 0 breaks. The most statistically significant estimators are the job lag growth rate in the second and third segments and the GDP growth rate in the third segment. (I am not counting the first segment because it only shows how the parameters fit the data while I am trying to observe whether the parameters change at the assigned breakdates). Alpha is statistically signifiant at the .05 level in the last segment. Thus, all model parameters show some degree of time-varying effects. For beta (lagged job growth rate), the third break does not show a significant change to be considered time-varying. For beta2 (GDP growth rate), the structural change occurs only for the period 1974 Q2 - 2010 Q1, which is most likely the effect of stagflation and the oil crisis. The changing level of the job growth rate indicates the unobservable effects on job growth rate that the predictors do not fully explain. 
+
+

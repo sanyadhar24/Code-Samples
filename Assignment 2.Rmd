@@ -1,0 +1,182 @@
+---
+title: "Assignment 2"
+author: "Sanya Dhar Malhotra"
+date: "9/24/2024"
+output: 
+  pdf_document:
+    number_sections: false 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(tidyverse)
+setwd("/Users/sanyamalhotra/Downloads/Data and Script 3")
+GDP = read_csv("CountryData.csv")
+GDP = GDP[!is.na(GDP$rgdpg) & !is.na(GDP$econg) & !is.na(GDP$co2g) & !is.na(GDP$eximg),]
+GDP$econg = gsub("\\(([^)]+)\\)", "-\\1", GDP$econg)
+GDP$co2g = gsub("\\(([^)]+)\\)", "-\\1", GDP$co2g)
+GDP$eximg = gsub("\\(([^)]+)\\)", "-\\1", GDP$eximg)
+GDP$rgdpg = gsub("\\(([^)]+)\\)", "-\\1", GDP$rgdpg)
+GDP$econg = as.numeric(GDP$econg)
+GDP$co2g = as.numeric(GDP$co2g)
+GDP$eximg = as.numeric(GDP$eximg)
+GDP$rgdpg = as.numeric(GDP$rgdpg)
+GDP
+
+```
+
+
+
+```{r}
+
+data_wc = GDP %>% filter(country != "China") 
+data_wc
+
+eq1 = lm(rgdpg ~ econg + co2g + eximg, data = data_wc)
+summary(eq1)
+
+eq2 = lm(rgdpg ~ econg + co2g + eximg, data = GDP)
+summary(eq2)
+
+eq3 = lm(rgdpg ~ econg + co2g + eximg + country, data = data_wc)
+summary(eq3)
+
+eq4 = lm(rgdpg ~ econg + co2g + eximg + country, data = GDP)
+summary(eq4)
+
+data_new = data_wc
+data_new$year = factor(data_new$year)
+eq5 = lm(rgdpg ~ econg + co2g + eximg + year, data = data_new)
+summary(eq5)
+
+data_new2 = GDP
+data_new2$year = factor(data_new2$year)
+eq6 = lm(rgdpg ~ econg + co2g + eximg + year, data = data_new2)
+summary(eq6)
+
+eq7 = lm(rgdpg ~ econg + co2g + eximg + country + year, data = data_new)
+summary(eq7)
+
+eq8 = lm(rgdpg ~ econg + co2g + eximg + country + year, data = data_new2)
+summary(eq8)
+
+eq9 = lm(rgdpg ~ econg + co2g + year, data = data_wc)
+summary(eq9)
+
+eq10 = lm(rgdpg ~ econg + co2g + year, data = GDP)
+summary(eq10)
+
+```
+```{r}
+USdata = GDP %>% filter(country == "United States")
+pred_OLS_US = predict(eq1, USdata)
+USdata = USdata %>% mutate(OLS = pred_OLS_US)
+USdata_alt = data_new2 %>% filter(country == "United States")
+pred_FE_US = predict(eq5, USdata_alt)
+USdata = USdata %>% mutate(FE = pred_FE_US)
+
+ggplot(USdata, aes(year)) + 
+  geom_point(aes(y = rgdpg), color = 'red', size = 3) + 
+  geom_line(aes(y = rgdpg), color = 'red', size = 1) +
+    geom_point(aes(y = pred_OLS_US), color = 'blue', size = 3) + 
+  geom_line(aes(y = pred_OLS_US), color = 'blue', size = 1) +
+    geom_point(aes(y = pred_FE_US), color = 'green', size = 3) + 
+  geom_line(aes(y = pred_FE_US), color = 'green', size = 1) +
+    labs(title = "US Real GDP Growth Rate and Model Estimation", x = "Year", y = "Real GDP Growth")
+
+China_data = GDP %>% filter(country == "China")
+pred_OLS_CHI = predict(eq1, China_data)
+China_data = China_data %>% mutate(OLS = pred_OLS_CHI)
+China_data_alt = data_new2 %>% filter(country == "China")
+pred_FE_CHI = predict(eq5, China_data_alt)
+China_data = China_data %>% mutate(FE = pred_FE_CHI)
+
+ggplot(China_data, aes(year)) + 
+  geom_point(aes(y = rgdpg), color = 'red', size = 3) + 
+  geom_line(aes(y = rgdpg), color = 'red', size = 1) +
+    geom_point(aes(y = pred_OLS_CHI), color = 'blue', size = 3) + 
+  geom_line(aes(y = pred_OLS_CHI), color = 'blue', size = 1) +
+    geom_point(aes(y = pred_FE_CHI), color = 'green', size = 3) + 
+  geom_line(aes(y = pred_FE_CHI), color = 'green', size = 1) +
+    labs(title = "China Real GDP Growth Rate and Model Estimation", x = "Year", y = "Real GDP Growth")
+
+India_data = GDP %>% filter(country == "India")
+pred_OLS_IND = predict(eq1, India_data)
+India_data = India_data %>% mutate(OLS = pred_OLS_IND)
+India_data_alt = data_new2 %>% filter(country == "India")
+pred_FE_IND = predict(eq5, India_data_alt)
+India_data = India_data %>% mutate(FE = pred_FE_IND)
+
+ggplot(India_data, aes(year)) + 
+  geom_point(aes(y = rgdpg), color = 'red', size = 3) + 
+  geom_line(aes(y = rgdpg), color = 'red', size = 1) +
+    geom_point(aes(y = pred_OLS_IND), color = 'blue', size = 3) + 
+  geom_line(aes(y = pred_OLS_IND), color = 'blue', size = 1) +
+    geom_point(aes(y = pred_FE_IND), color = 'green', size = 3) + 
+  geom_line(aes(y = pred_FE_IND), color = 'green', size = 1) +
+    labs(title = "India Real GDP Growth Rate and Model Estimation", x = "Year", y = "Real GDP Growth")
+
+
+```
+```{r}
+Upd_GDP = read_csv("CountryData_update.csv")
+Upd_GDP = Upd_GDP[!is.na(Upd_GDP$rgdpg) & !is.na(Upd_GDP$econg) & !is.na(Upd_GDP$co2g) & !is.na(Upd_GDP$eximg) & !is.na(Upd_GDP$hpg), ]
+Upd_GDP$econg = gsub("\\(([^)]+)\\)", "-\\1", Upd_GDP$econg)
+Upd_GDP$co2g = gsub("\\(([^)]+)\\)", "-\\1", Upd_GDP$co2g)
+Upd_GDP$eximg = gsub("\\(([^)]+)\\)", "-\\1", Upd_GDP$eximg)
+Upd_GDP$rgdpg = gsub("\\(([^)]+)\\)", "-\\1", Upd_GDP$rgdpg)
+Upd_GDP$econg = as.numeric(Upd_GDP$econg)
+Upd_GDP$co2g = as.numeric(Upd_GDP$co2g)
+Upd_GDP$eximg = as.numeric(Upd_GDP$eximg)
+Upd_GDP$rgdpg = as.numeric(Upd_GDP$rgdpg)
+Upd_GDP
+```
+```{r}
+eq11 = lm(rgdpg ~ econg + co2g + eximg + hpg, data = Upd_GDP)
+summary(eq11)
+  
+Upd_GDP_alt = Upd_GDP %>% filter(country != "China")
+eq12 = lm(rgdpg ~ econg + co2g + eximg, data = Upd_GDP_alt)
+summary(eq12)
+
+China_upd = Upd_GDP %>% filter(country == "China")
+pred_eq11 = predict(eq11, China_upd)
+China_upd = China_upd %>% mutate(OLS = pred_eq11)
+
+ggplot(China_upd, aes(year)) + 
+  geom_point(aes(y = rgdpg), color = 'blue', size = 3) + 
+  geom_line(aes(y = rgdpg), color = 'blue', size = 1) +
+    geom_point(aes(y = pred_eq11), color = 'red', size = 3) + 
+  geom_line(aes(y = pred_eq11), color = 'red', size = 1) +
+    labs(title = "China Official Estimates and Model Estimation", x = "Year", y = "Real GDP Growth")
+
+eq11_woCHI = lm(rgdpg ~ econg + co2g + eximg + hpg, data = Upd_GDP_alt)
+summary(eq11_woCHI)
+
+data_2023 = data.frame(econg = c(4.4), co2g = c(3.6), eximg = c(-6), hpg = c(-20))
+pred_growth = predict(eq11, data_2023)
+pred_growth 
+
+
+```
+
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

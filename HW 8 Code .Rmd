@@ -1,0 +1,218 @@
+---
+title: "HW 8 Code"
+author: "Sanya Malhotra"
+date: "4/7/2022"
+output: 
+  pdf_document:
+    number_sections: false 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(tidyverse)
+setwd("/Users/sanyamalhotra/Downloads/Datsets")
+Data = read_csv("AFQT.csv")
+Data
+```
+
+
+```{r}
+diff_Arith = Data %>% group_by(Gender) %>% summarize_if(is.numeric, mean) %>%
+  pull(Arith) %>% diff
+diff_Parag = Data %>% group_by(Gender) %>% summarize_if(is.numeric, mean) %>%
+  pull(Parag) %>% diff
+diff_Math = Data %>% group_by(Gender) %>% summarize_if(is.numeric, mean) %>%
+  pull(Math) %>% diff
+diff_Word = Data %>% group_by(Gender) %>% summarize_if(is.numeric, mean) %>%
+  pull(Word) %>% diff
+diff_AFQT = Data %>% group_by(Gender) %>% summarize_if(is.numeric, mean) %>%
+  pull(AFQT) %>% diff 
+
+diff_Arith
+diff_Parag
+diff_Math
+diff_Word
+diff_AFQT
+```
+
+
+
+```{r}
+n_M = Data %>%
+        filter(Gender == 'male') %>%
+        summarize(count = n()) %>%
+        pull(count)
+
+n_F = Data %>%
+        filter(Gender == 'female') %>%
+        summarize(count = n()) %>%
+        pull(count)
+
+S2_M_Arith = Data %>% filter(Gender == "male") %>% 
+  summarize_if(is.numeric, var) %>% pull(Arith)
+S2_M_Parag = Data %>% filter(Gender == "male") %>% 
+  summarize_if(is.numeric, var) %>% pull(Parag)
+S2_M_Math = Data %>% filter(Gender == "male") %>% 
+  summarize_if(is.numeric, var) %>% pull(Math)
+S2_M_Word = Data %>% filter(Gender == "male") %>% 
+  summarize_if(is.numeric, var) %>% pull(Word)
+S2_M_AFQT = Data %>% filter(Gender == "male") %>% 
+  summarize_if(is.numeric, var) %>% pull(AFQT)
+
+S2_F_Arith = Data %>% filter(Gender == "female") %>% 
+  summarize_if(is.numeric, var) %>% pull(Arith)
+S2_F_Parag = Data %>% filter(Gender == "female") %>% 
+  summarize_if(is.numeric, var) %>% pull(Parag)
+S2_F_Math = Data %>% filter(Gender == "female") %>% 
+  summarize_if(is.numeric, var) %>% pull(Math)
+S2_F_Word = Data %>% filter(Gender == "female") %>% 
+  summarize_if(is.numeric, var) %>% pull(Word)
+S2_F_AFQT = Data %>% filter(Gender == "female") %>% 
+  summarize_if(is.numeric, var) %>% pull(AFQT)
+
+SE_estimate_Arith = sqrt((S2_M_Arith/n_M) + (S2_F_Arith/n_F))
+SE_estimate_Parag = sqrt((S2_M_Parag/n_M) + (S2_F_Parag/n_F))
+SE_estimate_Math = sqrt((S2_M_Math/n_M) + (S2_F_Math/n_F))
+SE_estimate_Word = sqrt((S2_M_Word/n_M) + (S2_F_Word/n_F))
+SE_estimate_AFQT = sqrt((S2_M_AFQT/n_M) + (S2_F_AFQT/n_F))
+
+
+
+
+
+```
+```{r}
+alpha = 0.05
+
+upper_CI_Arith = diff_Arith + qnorm(1 - (alpha/2))*SE_estimate_Arith
+lower_CI_Arith = diff_Arith - qnorm(1 - (alpha/2))*SE_estimate_Arith
+
+print(upper_CI_Arith)
+print(lower_CI_Arith)
+
+upper_CI_Parag = diff_Parag + qnorm(1 - (alpha/2))*SE_estimate_Parag
+lower_CI_Parag = diff_Parag - qnorm(1 - (alpha/2))*SE_estimate_Parag
+
+print(upper_CI_Parag)
+print(lower_CI_Parag)
+
+upper_CI_Math = diff_Math + qnorm(1 - (alpha/2))*SE_estimate_Math
+lower_CI_Math = diff_Math - qnorm(1 - (alpha/2))*SE_estimate_Math
+
+print(upper_CI_Math)
+print(lower_CI_Math)
+
+upper_CI_Word = diff_Word + qnorm(1 - (alpha/2))*SE_estimate_Word
+lower_CI_Word = diff_Word - qnorm(1 - (alpha/2))*SE_estimate_Word
+
+print(upper_CI_Word)
+print(lower_CI_Word)
+
+upper_CI_AFQT = diff_AFQT + qnorm(1 - (alpha/2))*SE_estimate_AFQT
+lower_CI_AFQT = diff_AFQT - qnorm(1 - (alpha/2))*SE_estimate_AFQT
+
+print(upper_CI_AFQT)
+print(lower_CI_AFQT)
+```
+1. b) You would not be able to totally conclude that men perform better than women on these tests since the confidence intervals are not always in the positive range, indicating women would be performing better than men. 
+```{r}
+setwd("/Users/sanyamalhotra/Downloads")
+Schizo = read_csv("schizophrenia.csv")
+Schizo
+
+
+```
+```{r}
+diff_Schizo = Schizo %>% colMeans() %>% diff
+
+S2_A = var(Schizo$Affected)
+S2_U = var(Schizo$Unaffected)
+
+SE_estimate_S = sqrt((S2_A/15) + (S2_U/15))
+
+alpha = .05
+
+upper = diff_Schizo + qnorm(1 - (alpha/2))*SE_estimate_S
+lower = diff_Schizo - qnorm(1 - (alpha/2))*SE_estimate_S
+
+upper
+lower 
+
+```
+#ignore the "Affected" at the top of the intervals, not sure how to remove that. 
+
+2. b) You cannot treat this data as independent samples because the relationship between the "Affected" and "Unaffected" is between sets of monozygotic twins which share the same set of genes so will have charactersitics non-independence of each other. 
+```{r}
+
+Cov_A_U = cov(Schizo$Affected, Schizo$Unaffected)
+
+new_SE_estimate = sqrt((S2_A + S2_U - 2*Cov_A_U)/15)
+
+new_upper = diff_Schizo + qnorm(1 - (alpha/2))*new_SE_estimate
+new_lower = diff_Schizo - qnorm(1 - (alpha/2))*new_SE_estimate
+
+new_upper
+new_lower 
+```
+0 is Diet Coke, 1 is Original Coke 
+```{r}
+dietCoke = function(){
+   n = 4
+  guess = 0 
+  cokes = c(0, 0, 1, 1, 0, 1, 0, 1)
+  X = cokes[sample(c(1:length(cokes)), size = n, replace = FALSE)]
+  for(i in X)
+  {
+    if(i == 0){
+      guess = guess + 1 
+    }
+  }
+  return(guess)
+}
+
+outcomes = replicate(n = 10000, expr = dietCoke())
+mean(outcomes>3)
+
+
+```
+Red = 1, Blue = 2, Green = 3, Yellow = 4 
+have[0, 0, 0, 0] and change for each of the colors
+have[m] = 1 
+```{r}
+
+MMcolors = function(r, b, g, y){
+  count = 0
+  tester = c(0, 0, 0, 0) 
+  while(sum(tester) < 4){
+    m = sample(x = c(1,2,3,4), size = 1, replace = TRUE, prob = c(r, b, g, y))
+    tester[m] = 1
+    count = count+1
+  }
+  return(count)
+  
+}
+
+c = 16
+outcomes = replicate(n = 10000, expr = MMcolors(0.25, 0.25, 0.25, 0.25))
+prob = mean(outcomes>c)
+prob
+type1_error = .05 - prob
+type1_error 
+outcomes_alt = replicate(n = 10000, expr = MMcolors(0.1, 0.2, 0.5, 0.2))
+prob_alt = mean(outcomes_alt>c)
+prob_alt
+```
+
+
+
+
+

@@ -1,0 +1,106 @@
+---
+title: "Assignment 1"
+author: "Sanya Dhar Malhotra"
+date: "9/17/2024"
+output: 
+  pdf_document:
+    number_sections: false 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(tidyverse)
+setwd("/Users/sanyamalhotra/Downloads/Data and Script 2/Health in America Covid19 Variation")
+Tax = read_csv("P02_Corporate tax.csv")
+Tax
+```
+
+```{r}
+regression_one = lm(formula = ypcg ~ ctax, data = Tax)
+summary(regression_one)
+
+regression_two = lm(formula = ypcg ~ ctax + ypc2000, data = Tax)
+summary(regression_two)
+
+regression_three = lm(formula = ypcg ~ ctax + ypc2000 + dty + I(ctax * dty), data = Tax)
+summary(regression_three)
+```
+
+```{r}
+newdata = data.frame(ctax = c(20), ypc2000 = c(10,000), dty = c(35))
+test_ypcg = predict(regression_three, newdata)
+test_ypcg
+
+ggplot(Tax, aes(ctax, ypcg)) +
+  geom_point() +
+  geom_smooth(method = 'lm', se = FALSE)
+```
+
+GDP per capita in 2000 is used because that controls initial economic development levels. Since poorer countries will have higher growth rates because of a phenomenon called economic convergence, the initial GDP is a useful indicator for GDP growth rate. GDP per capita in 2015 will be a less reliable metric for a country's development because it will be a more endogenous variable. The final GDP is a product of growth trends across the period 2000 - 2015 whereas intiial GDP is unaffected by this. 
+
+Corporate tax rates averaged between 2000 and 2008 are used for a similar reason. Since the model is trying to answer the question how corporate tax rates affect GPD per capita growth, it is important to not use data that does the opposite. Corporate tax rates from the second period may lead to a model biased by reverse causality. 
+
+```{r}
+best_regression = lm(formula = ypcg ~ ctax + ypc2000 + dty + I(ctax * dty) + I(trade * ypc2000) + I(ihc * dty) , data = Tax)
+summary(best_regression)
+
+regression_test = lm(formula = ypcg ~ ctax + ypc2000 + dty + I(ctax * dty) + trade + ihc, data = Tax)
+summary(regression_test)
+```
+From playing around with the variables, this is the best model I could find with an adjusted R-squared of .73. Interestingly, I was able to get a better fit by adding trade and ihc only with the interaction of other variables. Otherwise, as shown by the regression_test, their t-value was not as high. It makes sense that trade openness and higher human capital increases GDP growth rates. But it has a stronger effect when one considers how trade openness interacts with initial economic development levels and how level of human capital interacts with debt to GDP ratio. These results may seem contradictory since both ypc2000 and dty are negatively correlated with GDP per capita growth rates. A possible explanation is that the higher the debt ratio is, higher human capital levels may boost GDP growth. Also, increased trade openness will increase GDP growth in richer countries more than poorer countries. More research is necessary to understand these relationships and verify it is not the opposite phenomena occuring, which would pose problems for how trade and human capital is related to GDP growth. 
+
+
+
+```{r}
+setwd("/Users/sanyamalhotra/Downloads/Data and Script 2/Health in America Covid19 Variation")
+source("H02b_crossSection.R", echo = TRUE)
+library(tidycensus)
+census_api_key("0140f71a468985369c925f29add471570a1f7913", install = TRUE, overwrite = TRUE)
+readRenviron("~/.Renviron")
+Sys.getenv("CENSUS_API_KEY")
+
+```
+```{r}
+Newcovid = read_csv("covid_deaths_usafacts_2022.csv")
+
+covidd_123122 = Newcovid[,c("countyFIPS", "2022-12-31")]
+names(covidd_123122) = c("county", "newdeaths")
+covidd_123122 = covidd_123122 %>% filter(county!=0)
+new3 = left_join(new2, covidd_123122, by = "county")
+new3 = new3 %>% mutate(newdeathp = 100000*newdeaths/population)
+
+eq01_new = lm(newdeathp ~ a85a + a7584 + a6574 + a5564 + a2034 + pdensity + pop + aindian + black + latino + asian + sparent + 
+            mincome + poverty + chci + lcp + ur + disable + hi_pub  + demv + hosp + vcrime +
+           commute_p + wfh + computer + p_nursehome + p_liquor + drinking + prematured + lowbirthw, data=new3)
+summary(eq01_new)
+tidy(eq01_new)
+
+# Graphs of variables with different correlations from data used in the article 
+ggplot(new3, aes(mincome, newdeathp)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', se = FALSE)
+
+ggplot(new3, aes(drinking, newdeathp)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', se = FALSE)
+
+eq05_new = lm(newdeathp ~ a85a + a7584 + a6574 + a5564 + a2034 + pdensity + pop + aindian + black + latino + asian + sparent + 
+            mincome + poverty + chci + lcp + ur + disable + hi_pub  + demv +
+            commute_p + wfh + computer + p_nursehome + p_liquor + drinking + prematured + lowbirthw + statename, data=new3)
+summary(eq05_new)
+tidy(eq05_new)
+
+
+
+```
+
+

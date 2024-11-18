@@ -1,6 +1,7 @@
 # Code-Samples
 
-# Assignment 1: Testing regressions to best estimate GDP per capita growth rates and COVID 19 mortality rates. 
+# Assignment 1: 
+Testing regressions to best estimate GDP per capita growth rates and COVID 19 mortality rates. 
 
 # Assignment 2: Experiments with 10 models for GDP growth prediction to deal with problem of inflation of GDP growth
 
